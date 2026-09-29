@@ -1,0 +1,28 @@
+name: Update upcoming tournaments
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Refresh event snapshot
+        env:
+          START_GG_TOKEN: ${{ secrets.START_GG_TOKEN }}
+        run: python update_events.py
+      - name: Commit updated events
+        run: |
+          git add events.json
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Update upcoming tournaments'
+          git push

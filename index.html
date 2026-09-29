@@ -338,130 +338,68 @@
         modal.style.display = "none";
       }
     }
-    const startAPIURL = "https://api.start.gg/gql/alpha";
-    const APIKey = "399eba98af3729199599242bbb02f247";
+    const eventDate = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London', day: '2-digit', month: '2-digit', year: 'numeric'
+    });
+    const cardDate = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London', weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'
+    });
 
+    function displayEvents(tournaments) {
+      const now = Date.now() / 1000;
+      const upcoming = tournaments.filter(tournament => tournament.startAt >= now)
+        .sort((a, b) => a.startAt - b.startAt);
+      if (upcoming.length === 0) {
+        $('#upcoming').append($('<li class="w3-padding"></li>').text('No upcoming events announced yet.'));
+        return;
+      }
 
-    //Conversts unix timestampt from api to a string in form of dd/mm/yyyy
-    function timestampToDate(timestamp) {
-      let date = new Date(timestamp * 1000)
-      let dateString = date.getDate().toString().padStart(2, '0') + "/" + (date.getMonth() + 1).toString().padStart(2, '0') + "/" + date.getFullYear();
-      return dateString;
-    }
+      upcoming.forEach(tournament => {
+        const li = $('<li class="w3-padding"></li>').text(eventDate.format(new Date(tournament.startAt * 1000)));
+        li.append($('<span class="w3-tag w3-green w3-margin-left"></span>').text(tournament.name));
+        $('#upcoming').append(li);
+      });
 
-    //Convers unix timestampt from api to a string in form of DayOfWeek Date Month Year
-    function timestampToDayDateMonthYear(timestamp) {
-      let date = new Date(timestamp * 1000)
-      let days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-      let stringToReturn = days[date.getDay()] + " " + date.getDate().toString().padStart(2, '0') + " " + months[date.getMonth()] + " " + date.getFullYear();
-      return stringToReturn;
-    }
-
-    //Filters the tournaments from query by key word, include keywords from future events in the array for them to be displayed
-    function filterByNames(tournament) {
-      let wantedTournaments = ["critical", "honeycomb", "melody"]
-      let found = false
-      wantedTournaments.forEach(name => {
-        if (tournament.name.toLowerCase().includes(name)) {
-          found = true
+      upcoming.slice(0, 3).forEach(tournament => {
+        const name = tournament.name.toLowerCase();
+        let image = 'imgs/criticalHitLogo.png';
+        let description = 'Local Tournament';
+        if (name.includes('honeycomb')) {
+          image = 'imgs/honeycombLogo.png';
+          description = 'Monthly Local';
+        } else if (name.includes('melody')) {
+          image = 'imgs/melodyLogo.png';
+          description = 'Regional';
+        } else if (name.includes('freshers')) {
+          description = 'Freshers Event';
+        } else if (name.includes('critical')) {
+          description = 'Weekly Local';
         }
+        const url = 'https://www.start.gg/' + tournament.slug;
+        const card = $('<div class="w3-third w3-margin-bottom"></div>');
+        card.append($('<img alt="Tournament logo" style="width:100%">').attr('src', image));
+        const details = $('<div class="w3-container w3-white"></div>');
+        const link = $('<a target="_blank" rel="noopener noreferrer" style="text-decoration:none;color:inherit"></a>')
+          .attr('href', url).text(tournament.name);
+        details.append($('<p><b><u></u></b></p>').find('u').append(link).end());
+        details.append($('<p class="w3-opacity"></p>').text(cardDate.format(new Date(tournament.startAt * 1000))));
+        details.append($('<p></p>').text(description));
+        details.append($('<a class="w3-button w3-black w3-margin-bottom" target="_blank" rel="noopener noreferrer">Register Now</a>')
+          .attr('href', url + '/register'));
+        $('#registerEvents').append(card.append(details));
+      });
+    }
+
+    fetch('events.json', { cache: 'no-store' })
+      .then(response => {
+        if (!response.ok) throw new Error('Unable to load upcoming events');
+        return response.json();
       })
-      return found
-    }
-
-    //Function that runs the query using the api and handles all usage of the api data on the page, including displaying
-    //the list of upcoming events and the top 3 upcoming events with links to their registration pages
-    const fetchStartGGData = () => {
-      fetch(startAPIURL, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'Accept': 'application/json',
-          Authorization: 'Bearer ' + APIKey
-        },
-        body: JSON.stringify({
-          //Selects all upcoming tournaments and sorts them from soonest to latest
-          //Will include all tournaments from canterbury, if there are more non us tournaments than the perPage variable, non of our tournaments will be displayed
-          query: 'query canterburyTournaments($perPage: Int, $coordinates: String!, $radius: String!) { tournaments( query: {perPage: $perPage sortBy: "startAt asc" ,filter: {upcoming: true , location: {distanceFrom: $coordinates, distance: $radius}}} ) { nodes { id name city startAt slug } } }',
-          variables: {
-            //change perPage variable to increase the amount of upcoming tournaments shown in the upcoming list
-            perPage: 20,
-            //Coords of Canterbury
-            coordinates: "51.2770, 1.0838",
-            radius: "3mi"
-          },
-        })
-      }).then(r => r.json())
-        .then(data => {
-          let tournaments = data.data.tournaments.nodes;
-          /*
-          //test tournament to ensure we filter out any other tournaments happening canterbury we don't want to display for now
-          const testTournament = {
-            id: 7428,
-            name: "Test Tournament",
-            city: "Birmingham",
-            startAt: 1759057200,
-            slug: "tournament/test-tournament-1"
-          }
-          tournaments.push(testTournament)
-          */
-          //Filters out unwanted tournaments if they are present
-          tournaments = tournaments.filter(filterByNames)
-          //For each loop to display the tournaments in the upcoming list
-          tournaments.forEach(tournament => {
-            let li = $("<li></li>").text(timestampToDate(tournament.startAt));
-            li.addClass("w3-padding");
-            let span = $("<span></span>").text(tournament.name)
-            span.addClass("w3-tag w3-green w3-margin-left");
-            li.append(span);
-            $('#upcoming').append(li);
-          });
-          //For loop with a try catch statments to display the top 3 soonest tournaments with their registration pages
-          //The catch ensures if there are not 3 upcoming tournaments a "Coming soon" tournament will be shown instead
-          for (let i = 0; i < 3; i++) {
-            try {
-              //outer div with img, inner div, p with b, p, p, button
-              let outerDiv = $("<div></div>")
-              outerDiv.addClass("w3-third w3-margin-bottom")
-              //What differes between honeycomb and criticalHit
-              let image = "";
-              let tourneyDesc = "";
-              //Add more if else statements here if we want to display any more tournaments that arent ours
-              if (tournaments[i].name.toLowerCase().includes("critical")) {
-                image = '<img src= "imgs/criticalHitLogo.png" alt ="critHitLogo" style="width:100%" class ="w3-hover-opcacity">'
-                tourneyDesc = "Weekly Local"
-              }
-              else if (tournaments[i].name.toLowerCase().includes("honeycomb")) {
-                image = '<img src= "imgs/honeycombLogo.png" alt ="honeycombLogo" style="width:100%" class ="w3-hover-opcacity">'
-                tourneyDesc = "Monthly Local"
-              }
-              else if (tournaments[i].name.toLowerCase().includes("melody")) {
-                image = '<img src= "imgs/melodyLogo.png" alt ="melodyLogo" style="width:100%" class ="w3-hover-opcacity">'
-                tourneyDesc = "Regional"
-
-              }
-              outerDiv.append(image)
-              let innerDiv = $("<div></div")
-              innerDiv.addClass("w3-container w3-white")
-              innerDiv.append(`<p><b><u><a href="https://www.start.gg/${tournaments[i].slug}" target="_blank" style="text-decoration: none; color: inherit;">${tournaments[i].name}</a></u></b></p>`);
-              innerDiv.append('<p class ="w3-opacity">' + timestampToDayDateMonthYear(tournaments[i].startAt) + '</p>')
-              innerDiv.append('<p>' + tourneyDesc + '</p>')
-              let button = $('<button class = "w3-button w3-black w3-margin-bottom""> Register Now </button>')
-              button.click(function () {
-                window.open("https://www.start.gg/" + tournaments[i].slug + "/register");
-              })
-              innerDiv.append(button)
-              outerDiv.append(innerDiv)
-              $('#registerEvents').append(outerDiv);
-            } catch (err) {
-              $('#registerEvents').addClass('w3-flex')
-              $('#registerEvents').css("justify-content", "center")
-            }
-          }
-        })
-    }
-    fetchStartGGData()
+      .then(displayEvents)
+      .catch(error => {
+        console.error('Upcoming events could not be loaded:', error);
+        $('#upcoming').append($('<li class="w3-padding"></li>').text('Upcoming events are temporarily unavailable.'));
+      });
   </script>
 
 </body>
