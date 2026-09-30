@@ -5,5 +5,12 @@
     "city": "Canterbury",
     "startAt": 1790866800,
     "slug": "tournament/critical-hit-freshers-event-2026"
+  },
+  {
+    "id": 956937,
+    "name": "Critical Hit #39",
+    "city": "Canterbury",
+    "startAt": 1798977600,
+    "slug": "tournament/critical-hit-39"
   }
 ]
